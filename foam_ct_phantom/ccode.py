@@ -39,11 +39,6 @@ cuintp = ctypes.POINTER(ctypes.c_uint32)
 def asuintp(arr):
     return arr.ctypes.data_as(cuintp)
 
-cintp = ctypes.POINTER(ctypes.c_int32)
-def asintp(arr):
-    return arr.ctypes.data_as(cintp)
-
-
 lib.newsphere.restype = ctypes.c_uint32
 lib.gettouching.restype = ctypes.c_uint32
 lib.iter_skiplist.restype = ctypes.c_int32
@@ -51,8 +46,8 @@ lib.iter_skiplist.restype = ctypes.c_int32
 def drawnewpositions(pos3, ds, zrange):
     lib.drawnewpositions(asfloatp(pos3), asfloatp(ds), asuint(ds.size), asfloat(zrange))
 
-def newsphere(pos3, ds, spheres, zrange, updated, tobeplaced):
-    return lib.newsphere(asfloatp(pos3), asfloatp(ds), asfloatp(spheres), asuint(ds.size), asuint(spheres.size//5), asfloat(zrange), asuintp(updated), asintp(tobeplaced))
+def newsphere(pos3, ds, spheres, zrange, updated):
+    return lib.newsphere(asfloatp(pos3), asfloatp(ds), asfloatp(spheres), asuint(ds.size), asuint(spheres.size//5), asfloat(zrange), asuintp(updated))
 
 def gettouching(spheres, i, cutoff):
     touching = np.zeros(spheres.size//5, dtype=np.uint32)
@@ -75,14 +70,23 @@ def average2d(vol, supersampling):
     lib.average2d(asfloatp(vol.ravel()), asfloatp(volnew.ravel()), asuint(volnew.shape[1]), asuint(volnew.shape[0]), asuint(supersampling))
     return volnew
 
-
+# output projected thickeness
 def genparproj(spheres, nx, ny, pixsize, angle, cx=0, cy=0, rotcx=0, rotcy=0):
-    proj = np.zeros((ny,nx),dtype=np.float32)
+    proj_cyl = np.zeros((ny,nx),dtype=np.float32)
+    proj_spheres = np.zeros((ny,nx),dtype=np.float32)
     n = np.array([nx,ny],dtype=np.uint32)
     c = np.array([cx,cy],dtype=np.float32)
     rotc = np.array([rotcx,rotcy],dtype=np.float32)
-    lib.genparproj(asfloatp(spheres), asuint(spheres.size//5), asfloatp(proj.ravel()), asuintp(n), asfloat(pixsize), asfloatp(c), asfloat(angle), asfloatp(rotc))
-    return proj
+    lib.genparproj(asfloatp(spheres), asuint(spheres.size//5), asfloatp(proj_cyl.ravel()), asfloatp(proj_spheres.ravel()), asuintp(n), asfloat(pixsize), asfloatp(c), asfloat(angle), asfloatp(rotc))
+    return proj_cyl, proj_spheres
+
+# def genparproj(spheres, nx, ny, pixsize, angle, cx=0, cy=0, rotcx=0, rotcy=0):
+#     proj = np.zeros((ny,nx),dtype=np.float32)
+#     n = np.array([nx,ny],dtype=np.uint32)
+#     c = np.array([cx,cy],dtype=np.float32)
+#     rotc = np.array([rotcx,rotcy],dtype=np.float32)
+#     lib.genparproj(asfloatp(spheres), asuint(spheres.size//5), asfloatp(proj.ravel()), asuintp(n), asfloat(pixsize), asfloatp(c), asfloat(angle), asfloatp(rotc))
+#     return proj
 
 def gen3dproj(spheres, nx, ny, pixsize, angle, tilt1, tilt2, maxz=1.5, cutout=0, cutoff=-np.inf):
     sph_rot = spheres.copy()
@@ -150,12 +154,6 @@ except ImportError:
 try:
     from numba import cuda, float32, int32
     import math
-
-    def set_cuda_device(devid):
-        cuda.select_device(devid)
-    
-    def close_cuda_context():
-        cuda.close()
 
     def genconeproj_cuda(spheres, nx, ny, pixsize, angle, sod, sdd, zoff=0):
         proj = cuda.to_device(np.zeros((ny,nx),dtype=np.float32))
